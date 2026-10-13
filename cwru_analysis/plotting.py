@@ -82,9 +82,10 @@ def _add_defect_markers(
     포락선 스펙트럼의 피크 위에서 시작하는 결함 주파수 점선을 추가한다.
 
     - 결함 데이터: 해당 결함 유형의 고조파를 빨간/파란/초록 점선으로 강조
-    - 정상 데이터: 모든 결함 유형의 고조파를 약하게 표시
-    - 레전드에 기본 주파수(Hz) 값을 표기
-    - 각 고조파 주변(±2%, 최소 ±2 FFT 빈)의 최대 진폭 위부터 점선을 표시
+    - 정상 데이터: BPFO/BPFI/BSF 고조파를 진한 점선으로 표시
+    - 레전드에 이론 기본 주파수와 1차 점선의 관측 피크 주파수(Hz)를 함께 표기
+    - 각 고조파 주변(±2%, 최소 ±2 FFT 빈)의 최대 진폭 FFT 빈에 점선을 정렬
+    - 점선은 해당 피크 위부터 표시하며 스펙트럼 데이터는 그대로 유지
     """
     y_min, y_max = ax.get_ylim()
     y_span = y_max - y_min
@@ -93,15 +94,19 @@ def _add_defect_markers(
         if len(spectrum_freqs) > 1 else 0.0
     )
 
-    def marker_bottom(freq: float) -> float:
+    def marker_position(freq: float) -> tuple[float, float]:
         half_width = max(freq * 0.02, 2 * freq_resolution)
         peak_mask = np.abs(spectrum_freqs - freq) <= half_width
-        peak = (
-            float(np.max(spectrum_magnitude[peak_mask]))
-            if np.any(peak_mask) else 0.0
-        )
+        peak_indices = np.flatnonzero(peak_mask)
+        if peak_indices.size:
+            peak_index = peak_indices[np.argmax(spectrum_magnitude[peak_indices])]
+            marker_freq = float(spectrum_freqs[peak_index])
+            peak = float(spectrum_magnitude[peak_index])
+        else:
+            marker_freq, peak = freq, 0.0
         # axvline의 ymin은 축 높이 비율이므로 피크 진폭을 0~1로 변환한다.
-        return float(np.clip((peak - y_min) / y_span + 0.005, 0.0, 1.0))
+        bottom = float(np.clip((peak - y_min) / y_span + 0.005, 0.0, 1.0))
+        return marker_freq, bottom
 
     if fault_type == FAULT_NORMAL:
         for fname in ("BPFO", "BPFI", "BSF"):
@@ -111,11 +116,15 @@ def _add_defect_markers(
                                             freq_max)
             labeled = False
             for freq in harmonics:
-                label = f"{fname} ({base:.1f} Hz)" if not labeled else None
+                marker_freq, bottom = marker_position(freq)
+                label = (
+                    f"{fname} (theory: {base:.1f} Hz)\n"
+                    f"Observed peak (1×): {marker_freq:.1f} Hz"
+                ) if not labeled else None
                 ax.axvline(
-                    freq, ymin=marker_bottom(freq), ymax=1.0,
+                    marker_freq, ymin=bottom, ymax=1.0,
                     color=style["color"], linestyle="--",
-                    alpha=0.25, linewidth=0.7, zorder=1, label=label,
+                    alpha=0.85, linewidth=1.2, zorder=1, label=label,
                 )
                 labeled = True
     else:
@@ -128,9 +137,13 @@ def _add_defect_markers(
         harmonics = _extended_harmonics(defect_freqs, freq_name, n_harmonics,
                                         freq_max)
         for i, freq in enumerate(harmonics):
-            label = f"{freq_name} ({base:.1f} Hz)" if i == 0 else None
+            marker_freq, bottom = marker_position(freq)
+            label = (
+                f"{freq_name} (theory: {base:.1f} Hz)\n"
+                f"Observed peak (1×): {marker_freq:.1f} Hz"
+            ) if i == 0 else None
             ax.axvline(
-                freq, ymin=marker_bottom(freq), ymax=1.0,
+                marker_freq, ymin=bottom, ymax=1.0,
                 color=style["color"], linestyle="--",
                 alpha=0.7, linewidth=1.0, zorder=1, label=label,
             )
