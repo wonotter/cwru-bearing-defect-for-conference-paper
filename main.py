@@ -1,19 +1,38 @@
 """
-CWRU 베어링 결함 주파수 분석 및 규칙 분류기 -- 메인 실행 스크립트.
+CWRU 베어링 결함 주파수 분석 및 규칙 분류기 — 메인 실행 스크립트.
 
-Phase별 구현이 완성될 때마다 여기에 실행 코드가 추가된다.
+Phase 1~5를 순차적으로 실행한다.
+  Phase 1: 카탈로그 구축 + 데이터 로드 검증
+  Phase 2: 신호 처리 파이프라인 검증
+  Phase 3: 논문용 포락선 스펙트럼 그래프 생성
+  Phase 4: 규칙 분류기 실행 (실험 A: 볼 포함 / 실험 B: 볼 제외)
+  Phase 5: 성능 평가 + 결과 저장
 """
+
+import time
 
 from cwru_analysis.catalog import (
     build_catalog,
+    filter_catalog,
     get_all_conditions,
     get_experiment_datasets,
     print_catalog_summary,
 )
+from cwru_analysis.classifier import run_experiment
+from cwru_analysis.config import (
+    FAULT_BALL,
+    FAULT_INNER,
+    FAULT_NORMAL,
+    FAULT_OUTER,
+    FAULT_TYPE_SHORT,
+    FAULT_TYPE_TO_FREQ,
+)
+from cwru_analysis.envelope import compute_envelope_spectrum
+from cwru_analysis.evaluation import run_evaluation
 from cwru_analysis.frequencies import calculate_defect_frequencies, print_defect_frequencies
 from cwru_analysis.kurtogram import compute_kurtogram, select_best_band
-from cwru_analysis.envelope import compute_envelope_spectrum
 from cwru_analysis.loading import load_dataset, load_datasets, print_dataset_summary
+from cwru_analysis.plotting import generate_all_plots
 
 
 def phase1():
@@ -74,7 +93,6 @@ def phase2(catalog, all_data):
         print(f"    엔벨로프 길이: {len(envelope)} samples")
 
         fault_type = data["info"].fault_type
-        from cwru_analysis.config import FAULT_TYPE_TO_FREQ
         freq_name = FAULT_TYPE_TO_FREQ.get(fault_type)
         if freq_name:
             harmonics = defect[freq_name]
@@ -102,9 +120,119 @@ def phase2(catalog, all_data):
     print(f"\n  Phase 2 완료\n")
 
 
+def phase3(catalog, all_data):
+    """Phase 3: 논문용 포락선 스펙트럼 그래프 생성."""
+    print("\n" + "=" * 70)
+    print("  Phase 3: 논문용 포락선 스펙트럼 그래프 생성")
+    print("=" * 70)
+
+    t0 = time.time()
+
+    # 3-1. 전체 파일에 대해 Kurtogram 대역 + 결함 주파수 계산
+    print("\n  [3-0] Kurtogram 대역 및 결함 주파수 일괄 계산 중...")
+    bands: dict[str, tuple[float, float]] = {}
+    kurtogram_results: dict[str, dict] = {}
+    defect_freqs: dict[str, dict] = {}
+
+    for key, data in all_data.items():
+        result = compute_kurtogram(data["signal"], data["fs"])
+        bands[key] = (result["best"]["low"], result["best"]["high"])
+        kurtogram_results[key] = result
+        defect_freqs[key] = calculate_defect_frequencies(data["rpm"])
+    print(f"        → {len(bands)}개 파일 계산 완료")
+
+    # 3-2. 모든 그래프 생성
+    counts = generate_all_plots(
+        catalog, all_data, bands, kurtogram_results, defect_freqs,
+    )
+
+    elapsed = time.time() - t0
+    print(f"\n  Phase 3 완료 ({elapsed:.1f}초 소요)\n")
+    return bands, kurtogram_results, defect_freqs
+
+
+def phase4(all_data, bands):
+    """Phase 4: 규칙 분류기 실행."""
+    print("\n" + "=" * 70)
+    print("  Phase 4: 규칙 분류기 실행")
+    print("=" * 70)
+
+    t0 = time.time()
+
+    # 실험 A: 볼 포함 4종 분류
+    print("\n  [4-A] 실험 A 실행 (Outer Race / Inner Race / Ball / Normal)")
+    results_a = run_experiment(all_data, bands, include_ball=True)
+
+    # 실험 B: 볼 제외 3종 분류
+    print("\n  [4-B] 실험 B 실행 (Outer Race / Inner Race / Normal)")
+    results_b = run_experiment(all_data, bands, include_ball=False)
+
+    elapsed = time.time() - t0
+    print(f"\n  Phase 4 완료 ({elapsed:.1f}초 소요)\n")
+    return results_a, results_b
+
+
+def phase5(results_a, results_b):
+    """Phase 5: 성능 평가 + 결과 저장."""
+    print("\n" + "=" * 70)
+    print("  Phase 5: 성능 평가 및 결과 저장")
+    print("=" * 70)
+
+    t0 = time.time()
+
+    # 실험 A 평가
+    eval_a = run_evaluation(results_a, include_ball=True,
+                            experiment_label="with_ball")
+
+    # 실험 B 평가
+    eval_b = run_evaluation(results_b, include_ball=False,
+                            experiment_label="without_ball")
+
+    # 결과 비교 요약
+    print("\n" + "-" * 50)
+    print("  실험 A vs B 비교")
+    print("-" * 50)
+    oa = eval_a["overall"]
+    ob = eval_b["overall"]
+    print(f"  실험 A (볼 포함 4종):  Accuracy={oa['accuracy']:.4f}, "
+          f"Macro F1={oa['macro_f1']:.4f}")
+    print(f"  실험 B (볼 제외 3종):  Accuracy={ob['accuracy']:.4f}, "
+          f"Macro F1={ob['macro_f1']:.4f}")
+
+    print(f"\n  클래스별 F1 비교:")
+    print(f"    {'Class':<15s} {'Exp A':>8s} {'Exp B':>8s}")
+    print(f"    {'-'*15} {'-'*8} {'-'*8}")
+    all_classes = sorted(set(list(oa["f1"].keys()) + list(ob["f1"].keys())))
+    for cls in all_classes:
+        fa = oa["f1"].get(cls, "-")
+        fb = ob["f1"].get(cls, "-")
+        fa_str = f"{fa:.4f}" if isinstance(fa, float) else fa
+        fb_str = f"{fb:.4f}" if isinstance(fb, float) else fb
+        print(f"    {cls:<15s} {fa_str:>8s} {fb_str:>8s}")
+
+    elapsed = time.time() - t0
+    print(f"\n  Phase 5 완료 ({elapsed:.1f}초 소요)\n")
+    return eval_a, eval_b
+
+
 def main():
     catalog, all_data = phase1()
     phase2(catalog, all_data)
+    bands, kurtogram_results, defect_freqs = phase3(catalog, all_data)
+    results_a, results_b = phase4(all_data, bands)
+    eval_a, eval_b = phase5(results_a, results_b)
+
+    print("\n" + "=" * 70)
+    print("  모든 Phase 완료")
+    print("=" * 70)
+    print("  결과 위치: results/")
+    print("    - results/envelope_spectra/   (포락선 스펙트럼 40장)")
+    print("    - results/kurtograms/         (Kurtogram 맵 40장)")
+    print("    - results/comparisons/        (비교 그래프)")
+    print("    - results/classification/     (분류 결과 + 평가)")
+    print("      ├── with_ball/              (실험 A)")
+    print("      └── without_ball/           (실험 B)")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

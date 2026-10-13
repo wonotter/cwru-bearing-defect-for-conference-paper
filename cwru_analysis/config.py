@@ -84,7 +84,7 @@ NORMAL_THRESHOLD = 10.0         # 정상 판정 임계값
 # ─────────────────────────────────────────────────────────────────
 # 시각화 파라미터
 # ─────────────────────────────────────────────────────────────────
-PLOT_FREQ_MAX = 500             # 포락선 스펙트럼 x축 최대 주파수 (Hz)
+PLOT_FREQ_MAX = 1000            # 포락선 스펙트럼 x축 최대 주파수 (Hz)
 KURTOGRAM_PLOT_FREQ_MAX = 1_000 # Kurtogram이 필요할 때 넓은 범위
 FIGURE_DPI = 150                # 저장 이미지 해상도
 N_HARMONICS_PLOT = 9            # 포락선 그래프에 표시할 최대 고조파 수
@@ -110,4 +110,12 @@ FAULT_TYPE_TO_FREQ = {
     FAULT_OUTER: "BPFO",
     FAULT_INNER: "BPFI",
     FAULT_BALL:  "BSF",
+}
+
+# 결함 유형 약어 (파일명, 그래프 라벨 등에 사용)
+FAULT_TYPE_SHORT = {
+    FAULT_OUTER:  "OR",
+    FAULT_INNER:  "IR",
+    FAULT_BALL:   "Ball",
+    FAULT_NORMAL: "Normal",
 }
