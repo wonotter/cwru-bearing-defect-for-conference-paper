@@ -13,3 +13,6 @@ results/
 .idea/
 *.swp
 *.swo
+
+# 계획 문서
+IMPLEMENTATION_PLAN.md
