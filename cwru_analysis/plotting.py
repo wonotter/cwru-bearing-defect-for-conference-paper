@@ -20,6 +20,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 import numpy as np
 
 from cwru_analysis.config import (
@@ -223,6 +224,7 @@ def plot_kurtogram_map(
     """
     Kurtogram 히트맵을 생성한다.
 
+    낮은 값은 파랑, 높은 값은 노랑으로 표시하고 레벨 0부터 아래로 붙여 그린다.
     선택된 최적 대역은 검은 테두리로 강조 표시한다.
 
     Parameters
@@ -241,11 +243,15 @@ def plot_kurtogram_map(
     fs = kurtogram_result["fs"]
 
     all_scores = np.concatenate([row["kurtosis"] for row in rows])
+    vmin = float(np.min(all_scores))
     vmax = float(np.max(all_scores))
-    if vmax <= 0:
-        vmax = 1.0
-    norm = plt.Normalize(vmin=0, vmax=vmax)
-    cmap = plt.cm.hot
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+    norm = plt.Normalize(vmin=vmin, vmax=vmax)
+    cmap = LinearSegmentedColormap.from_list(
+        "kurtogram_blue_yellow",
+        ["#2642CC", "#2C7CF6", "#08B7C1", "#8DCC55", "#F9F90E"],
+    )
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -256,22 +262,22 @@ def plot_kurtogram_map(
         scores = row["kurtosis"]
         for idx in range(len(centers)):
             low = centers[idx] - bw / 2
-            color_val = norm(max(0, float(scores[idx])))
+            color_val = norm(float(scores[idx]))
             rect = plt.Rectangle(
-                (low, level - 0.4), bw, 0.8,
+                (low, level - 0.5), bw, 1.0,
                 facecolor=cmap(color_val),
-                edgecolor="gray", linewidth=0.3,
+                edgecolor="none", linewidth=0, antialiased=False,
             )
             ax.add_patch(rect)
 
     best_rect = plt.Rectangle(
-        (best["low"], best["level"] - 0.45), best["bandwidth"], 0.9,
+        (best["low"], best["level"] - 0.5), best["bandwidth"], 1.0,
         facecolor="none", edgecolor="black", linewidth=2.5,
     )
     ax.add_patch(best_rect)
 
     ax.set_xlim(0, fs / 2)
-    ax.set_ylim(-0.5, len(rows) - 0.5)
+    ax.set_ylim(len(rows) - 0.5, -0.5)
     ax.set_xlabel("Frequency (Hz)", fontsize=10)
     ax.set_ylabel("Decomposition Level (k)", fontsize=10)
     ax.set_yticks(range(len(rows)))
