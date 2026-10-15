@@ -64,8 +64,10 @@ HP_TO_RPM: dict[int, float] = {
 # ─────────────────────────────────────────────────────────────────
 # Fast Kurtogram 파라미터
 # ─────────────────────────────────────────────────────────────────
-KURTOGRAM_NLEVEL = 5            # 0이면 통대역 1칸, 5이면 최대 32칸
-KURTOGRAM_MIN_BANDWIDTH = 800   # Hz — 이보다 좁은 칸은 후보에서 제외
+KURTOGRAM_NLEVEL = 5            # 이진 최대 레벨 (삼진 행은 1.6, 2.6, ...)
+KURTOGRAM_MIN_BANDWIDTH = 600   # Hz — 이보다 좁은 칸은 후보에서 제외
+KURTOGRAM_FILTER_ORDER = 16    # Antoni 원본의 이진 FIR 필터 차수
+KURTOGRAM_FILTER_CUTOFF = 0.4  # Antoni 원본의 정규화 차단 주파수
 
 # ─────────────────────────────────────────────────────────────────
 # 포락선 분석 파라미터

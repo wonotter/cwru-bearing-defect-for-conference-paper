@@ -255,8 +255,8 @@ def plot_kurtogram_map(
 
     fig, ax = plt.subplots(figsize=(10, 5))
 
-    for row in rows:
-        level = row["level"]
+    # 삼진 레벨은 1.585...이므로 실제 레벨 대신 행 인덱스로 붙여 배치한다.
+    for row_idx, row in enumerate(rows):
         bw = row["bandwidth"]
         centers = row["centers"]
         scores = row["kurtosis"]
@@ -264,14 +264,17 @@ def plot_kurtogram_map(
             low = centers[idx] - bw / 2
             color_val = norm(float(scores[idx]))
             rect = plt.Rectangle(
-                (low, level - 0.5), bw, 1.0,
+                (low, row_idx - 0.5), bw, 1.0,
                 facecolor=cmap(color_val),
                 edgecolor="none", linewidth=0, antialiased=False,
             )
             ax.add_patch(rect)
 
+    best_row_idx = next(
+        idx for idx, row in enumerate(rows) if row["level"] == best["level"]
+    )
     best_rect = plt.Rectangle(
-        (best["low"], best["level"] - 0.5), best["bandwidth"], 1.0,
+        (best["low"], best_row_idx - 0.5), best["bandwidth"], 1.0,
         facecolor="none", edgecolor="black", linewidth=2.5,
     )
     ax.add_patch(best_rect)
@@ -281,6 +284,8 @@ def plot_kurtogram_map(
     ax.set_xlabel("Frequency (Hz)", fontsize=10)
     ax.set_ylabel("Decomposition Level (k)", fontsize=10)
     ax.set_yticks(range(len(rows)))
+    level_labels = [f"{row['level']:.1f}".removesuffix(".0") for row in rows]
+    ax.set_yticklabels(level_labels)
 
     size_str = f' {info.fault_diameter}"' if info.fault_diameter else ""
     title = (

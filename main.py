@@ -114,7 +114,7 @@ def phase2(catalog, all_data):
         best = result["best"]
         print(f"  {key:<16s} {data['rpm']:>6.0f} "
               f"{best['low']:>9.0f} {best['high']:>10.0f} "
-              f"{best['bandwidth']:>6.0f} {best['level']:>5d} "
+              f"{best['bandwidth']:>6.0f} {best['level']:>5.1f} "
               f"{best['kurtosis']:>9.2f}")
 
     print(f"\n  Phase 2 완료\n")
