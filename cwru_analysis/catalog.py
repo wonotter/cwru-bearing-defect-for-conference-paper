@@ -23,6 +23,7 @@ from cwru_analysis.config import (
     ANALYSIS_FS,
     DATASET_DIR,
     FAULT_BALL,
+    FAULT_DIAMETERS,
     FAULT_INNER,
     FAULT_NORMAL,
     FAULT_OUTER,
@@ -90,6 +91,10 @@ def _build_fault_entries(dataset_dir: Path) -> list[DatasetEntry]:
         if not size_dir.is_dir():
             continue
         fault_diameter = size_dir.name  # "0.007", "0.014", "0.021"
+
+        # FAULT_DIAMETERS에 포함된 결함 크기만 등록
+        if fault_diameter not in FAULT_DIAMETERS:
+            continue
 
         for hp_dir in sorted(size_dir.iterdir()):
             if not hp_dir.is_dir():
@@ -268,14 +273,15 @@ def get_all_conditions() -> list[tuple[str, int]]:
     """
     전체 실험 조건 목록을 반환한다.
 
+    config.FAULT_DIAMETERS에 정의된 결함 크기만 포함한다.
+
     Returns
     -------
     list[tuple[str, int]]
-        [(결함크기, HP), ...] = 12개 조건
+        [(결함크기, HP), ...] — FAULT_DIAMETERS × HP 조합
     """
-    diameters = ["0.007", "0.014", "0.021"]
     hps = [0, 1, 2, 3]
-    return [(d, h) for d in diameters for h in hps]
+    return [(d, h) for d in FAULT_DIAMETERS for h in hps]
 
 
 def print_catalog_summary(catalog: dict[str, DatasetEntry]) -> None:

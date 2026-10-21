@@ -27,6 +27,7 @@ from cwru_analysis.config import (
     DEFECT_FREQ_COLORS,
     DEFECT_FREQ_MULTIPLIERS,
     FAULT_BALL,
+    FAULT_DIAMETERS,
     FAULT_INNER,
     FAULT_NORMAL,
     FAULT_OUTER,
@@ -559,7 +560,7 @@ def generate_all_plots(
     print("  [3-5] HP(RPM)별 비교 그래프 생성 중...")
     for ft in (FAULT_OUTER, FAULT_INNER, FAULT_BALL):
         ts = FAULT_TYPE_SHORT[ft]
-        for diameter in ("0.007", "0.014", "0.021"):
+        for diameter in FAULT_DIAMETERS:
             entries = filter_catalog(
                 catalog, fault_types=[ft], fault_diameter=diameter,
             )

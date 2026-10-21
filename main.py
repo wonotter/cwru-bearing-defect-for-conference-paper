@@ -222,16 +222,22 @@ def main():
     results_a, results_b = phase4(all_data, bands)
     eval_a, eval_b = phase5(results_a, results_b)
 
+    from cwru_analysis.config import FAULT_DIAMETERS
+    n_fault_files = len(FAULT_DIAMETERS) * 4 * 3  # 크기 × HP × 결함유형(OR,IR,Ball)
+    n_normal_files = 4                             # Normal HP 0~3
+    n_total = n_fault_files + n_normal_files
+
     print("\n" + "=" * 70)
     print("  모든 Phase 완료")
     print("=" * 70)
-    print("  결과 위치: results/")
-    print("    - results/envelope_spectra/   (포락선 스펙트럼 40장)")
-    print("    - results/kurtograms/         (Kurtogram 맵 40장)")
-    print("    - results/comparisons/        (비교 그래프)")
-    print("    - results/classification/     (분류 결과 + 평가)")
-    print("      ├── with_ball/              (실험 A)")
-    print("      └── without_ball/           (실험 B)")
+    print(f"  실험 결함 크기: {', '.join(FAULT_DIAMETERS)}\"")
+    print(f"  결과 위치: results/")
+    print(f"    - results/envelope_spectra/   (포락선 스펙트럼 {n_total}장)")
+    print(f"    - results/kurtograms/         (Kurtogram 맵 {n_total}장)")
+    print(f"    - results/comparisons/        (비교 그래프)")
+    print(f"    - results/classification/     (분류 결과 + 평가)")
+    print(f"      ├── with_ball/              (실험 A)")
+    print(f"      └── without_ball/           (실험 B)")
     print("=" * 70 + "\n")
 
 
