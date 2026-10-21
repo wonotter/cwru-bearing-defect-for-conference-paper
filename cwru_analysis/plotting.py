@@ -192,10 +192,13 @@ def plot_envelope_spectrum(
     ax.set_xlabel("Frequency (Hz)", fontsize=10)
     ax.set_ylabel("Amplitude (g)", fontsize=10)
 
-    size_str = f' {info.fault_diameter}"' if info.fault_diameter else ""
+    if info.fault_type == FAULT_NORMAL:
+        fault_desc = "Normal (No Fault)"
+    else:
+        size_str = f' {info.fault_diameter}"' if info.fault_diameter else ""
+        fault_desc = f"{info.fault_type} Fault{size_str}"
     title = (
-        f"Envelope Spectrum: {data['key']} - {info.fault_type}"
-        f" Fault{size_str} "
+        f"Envelope Spectrum: {data['key']} - {fault_desc} "
         f"({info.hp}HP, {rpm:.0f} RPM)\n"
         f"Kurtogram {band[0]:.0f}~{band[1]:.0f} Hz"
     )
