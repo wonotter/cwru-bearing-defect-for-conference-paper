@@ -93,10 +93,14 @@ def compute_fft(signal: np.ndarray, fs: float) -> tuple[np.ndarray, np.ndarray]:
 def compute_envelope_spectrum(
     signal: np.ndarray,
     fs: float,
-    band: tuple[float, float],
+    band: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Kurtogram이 선택한 대역으로 포락선 스펙트럼을 계산한다.
+    포락선 스펙트럼을 계산한다.
+
+    band가 주어지면 Kurtogram이 선택한 대역으로 밴드패스 필터링 후
+    포락선을 추출하고, band=None이면 밴드패스 없이 원 신호에서
+    직접 포락선을 추출한다 (정상 데이터에 사용).
 
     Parameters
     ----------
@@ -104,8 +108,9 @@ def compute_envelope_spectrum(
         시간 영역 신호 (1D)
     fs : float
         샘플링 레이트 (Hz)
-    band : tuple[float, float]
-        (low_hz, high_hz) -- Kurtogram에서 선택한 최적 대역
+    band : tuple[float, float] | None
+        (low_hz, high_hz) -- Kurtogram에서 선택한 최적 대역.
+        None이면 밴드패스 필터를 적용하지 않는다.
 
     Returns
     -------
@@ -116,8 +121,11 @@ def compute_envelope_spectrum(
     envelope : np.ndarray
         시간 영역 포락선 (그래프용)
     """
-    low, high = _clip_band(band[0], band[1], fs)
-    filtered = bandpass_filter(signal, fs, low, high)
+    if band is not None:
+        low, high = _clip_band(band[0], band[1], fs)
+        filtered = bandpass_filter(signal, fs, low, high)
+    else:
+        filtered = signal
     envelope = extract_envelope(filtered)
     dc_removed = envelope - np.mean(envelope)
     freqs, magnitude = compute_fft(dc_removed, fs)

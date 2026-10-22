@@ -111,24 +111,8 @@ def _add_defect_markers(
         return marker_freq, bottom
 
     if fault_type == FAULT_NORMAL:
-        for fname in ("BPFO", "BPFI", "BSF"):
-            style = DEFECT_FREQ_COLORS[fname]
-            base = defect_freqs[fname][0] if defect_freqs[fname] else 0
-            harmonics = _extended_harmonics(defect_freqs, fname, n_harmonics,
-                                            freq_max)
-            labeled = False
-            for freq in harmonics:
-                marker_freq, bottom = marker_position(freq)
-                label = (
-                    f"{fname} (theory: {base:.1f} Hz)\n"
-                    f"Observed peak (1×): {marker_freq:.1f} Hz"
-                ) if not labeled else None
-                ax.axvline(
-                    marker_freq, ymin=bottom, ymax=1.0,
-                    color=style["color"], linestyle="--",
-                    alpha=0.85, linewidth=1.2, zorder=1, label=label,
-                )
-                labeled = True
+        return
+
     else:
         freq_name = FAULT_TYPE_TO_FREQ.get(fault_type)
         if freq_name is None:
@@ -147,7 +131,7 @@ def _add_defect_markers(
             ax.axvline(
                 marker_freq, ymin=bottom, ymax=1.0,
                 color=style["color"], linestyle="--",
-                alpha=0.7, linewidth=1.0, zorder=1, label=label,
+                alpha=0.5, linewidth=1.8, zorder=1, label=label,
             )
 
 
@@ -156,9 +140,10 @@ def _add_defect_markers(
 # ─────────────────────────────────────────────────────────────────
 def plot_envelope_spectrum(
     data: dict,
-    band: tuple[float, float],
+    band: tuple[float, float] | None,
     defect_freqs: dict,
     save: bool = True,
+    ylim_max: float | None = None,
 ) -> Path | tuple:
     """
     단일 파일의 포락선 스펙트럼을 그래프로 생성한다.
@@ -167,12 +152,15 @@ def plot_envelope_spectrum(
     ----------
     data : dict
         load_dataset()으로 로드된 데이터
-    band : tuple[float, float]
-        Kurtogram에서 선택한 (low_hz, high_hz)
+    band : tuple[float, float] | None
+        Kurtogram에서 선택한 (low_hz, high_hz).
+        None이면 밴드패스 없이 포락선을 계산한다 (Normal 데이터).
     defect_freqs : dict
         calculate_defect_frequencies() 반환값
     save : bool
         True → 파일 저장 후 경로 반환, False → (fig, ax) 반환
+    ylim_max : float | None
+        Y축 최대값. None이면 자동. 전체 그래프의 Y축 스케일을 통일할 때 사용.
     """
     info = data["info"]
     signal, fs, rpm = data["signal"], data["fs"], data["rpm"]
@@ -184,7 +172,12 @@ def plot_envelope_spectrum(
     ax.plot(freqs[mask], magnitude[mask],
             color="#1f77b4", linewidth=0.6, alpha=0.9, zorder=3,
             label="Spectrum")
-    ax.set_ylim(bottom=0)
+
+    if ylim_max is not None:
+        ax.set_ylim(0, ylim_max)
+    else:
+        ax.set_ylim(bottom=0)
+
     _add_defect_markers(
         ax, defect_freqs, info.fault_type, freqs[mask], magnitude[mask],
     )
@@ -195,14 +188,21 @@ def plot_envelope_spectrum(
 
     if info.fault_type == FAULT_NORMAL:
         fault_desc = "Normal (No Fault)"
+        title = (
+            f"Envelope Spectrum: {data['key']} - {fault_desc} "
+            f"({info.hp}HP, {rpm:.0f} RPM)"
+        )
     else:
         size_str = f' {info.fault_diameter}"' if info.fault_diameter else ""
         fault_desc = f"{info.fault_type} Fault{size_str}"
-    title = (
-        f"Envelope Spectrum: {data['key']} - {fault_desc} "
-        f"({info.hp}HP, {rpm:.0f} RPM)\n"
-        f"Kurtogram {band[0]:.0f}~{band[1]:.0f} Hz"
-    )
+        band_str = (
+            f"Kurtogram {band[0]:.0f}~{band[1]:.0f} Hz" if band else ""
+        )
+        title = (
+            f"Envelope Spectrum: {data['key']} - {fault_desc} "
+            f"({info.hp}HP, {rpm:.0f} RPM)\n"
+            f"{band_str}"
+        )
     ax.set_title(title, fontsize=11, fontweight="bold")
     ax.legend(fontsize=8, loc="upper right")
     fig.tight_layout()
@@ -339,7 +339,7 @@ def _plot_comparison(
     for ax, key in zip(axes, keys):
         data = datasets[key]
         signal, fs = data["signal"], data["fs"]
-        band = bands[key]
+        band = None if data["info"].fault_type == FAULT_NORMAL else bands[key]
         freqs, magnitude, _ = compute_envelope_spectrum(signal, fs, band)
         defect = defect_freqs[key]
 
@@ -515,8 +515,46 @@ def generate_all_plots(
 
     # ── 1. 개별 포락선 스펙트럼 (40장) ──
     print("\n  [3-1] 개별 포락선 스펙트럼 생성 중...")
+
+    # 1-a. HP(부하)별 최대 Amplitude를 구한다.
+    #      같은 부하 조건의 결함 데이터끼리 Y축을 통일하고,
+    #      Normal 데이터는 별도로 HP별 Y축을 적용한다.
+    fault_hp_max: dict[int, float] = {}    # {hp: max_amplitude}
+    normal_hp_max: dict[int, float] = {}   # {hp: max_amplitude}
     for key, data in all_data.items():
-        plot_envelope_spectrum(data, bands[key], defect_freqs[key])
+        info = data["info"]
+        hp = info.hp
+        signal, fs = data["signal"], data["fs"]
+        band_for_plot = None if info.fault_type == FAULT_NORMAL else bands[key]
+        freqs, magnitude, _ = compute_envelope_spectrum(signal, fs, band_for_plot)
+        mask = freqs <= PLOT_FREQ_MAX
+        if np.any(mask):
+            local_max = float(np.max(magnitude[mask]))
+            if info.fault_type == FAULT_NORMAL:
+                normal_hp_max[hp] = max(normal_hp_max.get(hp, 0.0), local_max)
+            else:
+                fault_hp_max[hp] = max(fault_hp_max.get(hp, 0.0), local_max)
+
+    fault_hp_ylim = {hp: val * 1.05 for hp, val in fault_hp_max.items()}
+    normal_hp_ylim = {hp: val * 1.05 for hp, val in normal_hp_max.items()}
+    for hp in sorted(fault_hp_ylim):
+        print(f"        Y축 (결함 {hp}HP): max = {fault_hp_max[hp]:.4f} g "
+              f"→ ylim = {fault_hp_ylim[hp]:.4f} g")
+    for hp in sorted(normal_hp_ylim):
+        print(f"        Y축 (정상 {hp}HP): max = {normal_hp_max[hp]:.4f} g "
+              f"→ ylim = {normal_hp_ylim[hp]:.4f} g")
+
+    # 1-b. HP별 Y축으로 포락선 스펙트럼을 생성한다.
+    for key, data in all_data.items():
+        info = data["info"]
+        band_for_plot = None if info.fault_type == FAULT_NORMAL else bands[key]
+        if info.fault_type == FAULT_NORMAL:
+            ylim = normal_hp_ylim.get(info.hp)
+        else:
+            ylim = fault_hp_ylim.get(info.hp)
+        plot_envelope_spectrum(
+            data, band_for_plot, defect_freqs[key], ylim_max=ylim,
+        )
         counts["envelope"] += 1
     print(f"        → {counts['envelope']}장 완료")
 

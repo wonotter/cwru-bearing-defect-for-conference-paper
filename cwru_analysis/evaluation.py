@@ -388,8 +388,8 @@ def run_evaluation(
 
     exp_dir = CLASSIFICATION_DIR / experiment_label
     class_names = CLASSES_WITH_BALL if include_ball else CLASSES_WITHOUT_BALL
-    exp_display = "B (볼 포함)" if include_ball else "A (볼 제외)"
-    exp_plot_label = "B (with Ball, 4-class)" if include_ball else "A (without Ball, 3-class)"
+    exp_display = "(볼 포함)" if include_ball else "(볼 제외)"
+    exp_plot_label = "(4-class)" if include_ball else "(3-class)"
 
     print(f"\n  [평가] 실험 {exp_display}")
 

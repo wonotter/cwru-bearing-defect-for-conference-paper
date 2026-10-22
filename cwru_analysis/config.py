@@ -94,7 +94,7 @@ N_HARMONICS_PLOT = 9            # 포락선 그래프에 표시할 최대 고조
 # 결함 주파수 마커 색상
 DEFECT_FREQ_COLORS = {
     "BPFO":  {"color": "#E74C3C", "label": "BPFO (Outer Race)"},
-    "BPFI":  {"color": "#3498DB", "label": "BPFI (Inner Race)"},
+    "BPFI":  {"color": "#8E44AD", "label": "BPFI (Inner Race)"},
     "BSF":   {"color": "#2ECC71", "label": "BSF (Ball)"},
     "FTF":   {"color": "#F39C12", "label": "FTF (Cage)"},
     "1xRPM": {"color": "#95A5A6", "label": "1× RPM"},
